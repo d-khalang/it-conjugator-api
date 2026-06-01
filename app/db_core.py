@@ -41,7 +41,7 @@ AUX_TEMPLATES = {
         "futuro semplice": {"io": "avrò", "tu": "avrai", "lui, lei, Lei, egli": "avrà", "noi": "avremo", "voi": "avrete", "loro, Loro, essi": "avranno"},
         "congiuntivo_presente": {"io": "abbia", "tu": "abbia", "lui, lei, Lei, egli": "abbia", "noi": "abbiamo", "voi": "abbiate", "loro, Loro, essi": "abbiano"},
         "congiuntivo_imperfetto": {"io": "avessi", "tu": "avessi", "lui, lei, Lei, egli": "avesse", "noi": "avessimo", "voi": "aveste", "loro, Loro, essi": "avessero"},
-        "condizionale_presente": {"io": "avrei", "tu": "avresti", "lui, lei, Lei, egli": "avrebbe", "noi": "saremmo", "voi": "sareste", "loro, Loro, essi": "sarebbero"}
+        "condizionale_presente": {"io": "avrei", "tu": "avresti", "lui, lei, Lei, egli": "avrebbe", "noi": "avremmo", "voi": "avreste", "loro, Loro, essi": "avrebbero"}
     }
 }
 
