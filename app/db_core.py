@@ -276,6 +276,67 @@ def resolve_pronominal_base(verb_query: str) -> Optional[tuple[str, str]]:
             
     return None
 
+def levenshtein_distance(s1: str, s2: str) -> int:
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+        
+    return previous_row[-1]
+
+def find_fuzzy_infinitive(cursor: sqlite3.Cursor, query: str) -> Optional[str]:
+    words = query.strip().split()
+    if not words:
+        return None
+        
+    candidate = words[-1]
+    if len(candidate) < 4:
+        return None
+        
+    prefix = candidate[:4]
+    cursor.execute("""
+        SELECT DISTINCT form, infinitive 
+        FROM forms 
+        WHERE form LIKE ?
+    """, (prefix + "%",))
+    
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+        
+    best_dist = 999
+    best_infinitives = []
+    
+    for form, infinitive in rows:
+        dist = levenshtein_distance(form, candidate)
+        if dist < best_dist:
+            best_dist = dist
+            best_infinitives = [infinitive]
+        elif dist == best_dist:
+            best_infinitives.append(infinitive)
+            
+    if best_dist > 2:
+        return None
+        
+    if len(best_infinitives) > 1:
+        has_reflexive_clitic = any(w in ["mi", "ti", "si", "ci", "vi", "me", "te", "se", "ce", "ve"] for w in words[:-1])
+        if has_reflexive_clitic:
+            for inf in best_infinitives:
+                if inf.endswith(("si", "sela", "sene", "ci", "cela", "cene")):
+                    return inf
+                    
+    return best_infinitives[0]
+
 def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
     """
     Queries the SQLite database for the verb conjugation table.
@@ -284,7 +345,7 @@ def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError(f"Database file not found at {DB_PATH}. Please run build_db.py first.")
         
-    cleaned_query = clean_accents(verb_query).strip()
+    cleaned_query = clean_accents(verb_query).strip().strip("\"'")
     if not cleaned_query:
         return None
         
@@ -317,6 +378,18 @@ def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
         (resolved_infinitive,)
     )
     row = cursor.fetchone()
+    
+    # Fuzzy match fallback if not found
+    if not row:
+        fuzzy_infinitive = find_fuzzy_infinitive(cursor, cleaned_query)
+        if fuzzy_infinitive:
+            resolved_infinitive = fuzzy_infinitive
+            cursor.execute(
+                "SELECT conjugation_json, auxiliary, model, principal_forms_json FROM verbs WHERE infinitive = ?",
+                (resolved_infinitive,)
+            )
+            row = cursor.fetchone()
+            
     conn.close()
     
     if row:

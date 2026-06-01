@@ -7,7 +7,7 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python main.py <italian_verb>")
         sys.exit(1)
-    verb = sys.argv[1].strip()
+    verb = " ".join(sys.argv[1:]).strip().strip("\"'")
 
     try:
         data = get_conjugations(verb)
