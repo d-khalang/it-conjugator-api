@@ -25,9 +25,28 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+Set the required API key environment variable:
+* **Windows (PowerShell)**:
+  ```powershell
+  $env:SCRAPER_API_KEY="secret_auth"
+  ```
+* **Windows (CMD)**:
+  ```cmd
+  set SCRAPER_API_KEY=secret_auth
+  ```
+* **Linux / macOS**:
+  ```bash
+  export SCRAPER_API_KEY="secret_auth"
+  ```
+
 Run the service:
 ```bash
 python -m uvicorn app.api:app --host 0.0.0.0 --port 8000
+```
+
+Once running, query the API using standard HTTP tools (such as curl):
+```bash
+curl -H "X-API-Key: secret_auth" "http://localhost:8000/conjugate?v=mi+arrabbio"
 ```
 
 ### Docker
