@@ -369,8 +369,18 @@ def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
     if not has_direct_match:
         cursor.execute("SELECT DISTINCT infinitive FROM forms WHERE form = ? ORDER BY length(infinitive) ASC", (cleaned_query,))
         rows = cursor.fetchall()
-        if rows:
-            resolved_infinitive = rows[0][0]
+        for r in rows:
+            cand = r[0]
+            cursor.execute("SELECT conjugation_json FROM verbs WHERE infinitive = ?", (cand,))
+            v_row = cursor.fetchone()
+            if v_row:
+                try:
+                    conj_dict = json.loads(zlib.decompress(v_row[0]).decode('utf-8'))
+                    if conj_dict.get("indicativo", {}).get("presente"):
+                        resolved_infinitive = cand
+                        break
+                except Exception:
+                    pass
             
     # 3. Fetch main verb data
     cursor.execute(
