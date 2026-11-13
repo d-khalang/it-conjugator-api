@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+import re
 import zlib
 from typing import Dict, Any, Optional
 
@@ -11,8 +12,15 @@ VOWELS_MAP = {
     'À': 'A', 'Á': 'A', 'È': 'E', 'É': 'E', 'Ì': 'I', 'Í': 'I', 'Ò': 'O', 'Ó': 'O', 'Ù': 'U', 'Ú': 'U'
 }
 
+# One-syllable words whose final accent is standard spelling (è vs e, dà vs da, dì vs di). Wiktionary also
+# marks stress on other one-vowel words (fà, và, stò, fù), which Italian writes without an accent.
+ACCENTED_MONOSYLLABLES = {"è", "dà", "dì", "sé", "né", "tè", "là", "lì", "sì"}
+
+def _vowel_count(w: str) -> int:
+    return sum(ch in "aeiouàáèéìíòóùú" for ch in w.lower())
+
 def clean_accents(s: str) -> str:
-    """Strip internal dictionary stress accents, preserving final accents."""
+    """Strip dictionary stress accents: internal ones, and final ones on monosyllables that take none (fà -> fa)."""
     if not s:
         return s
     def clean_single_word(w: str) -> str:
@@ -20,7 +28,10 @@ def clean_accents(s: str) -> str:
         for i in range(len(chars) - 1):
             if chars[i] in VOWELS_MAP:
                 chars[i] = VOWELS_MAP[chars[i]]
-        return "".join(chars)
+        word = "".join(chars)
+        if word and word[-1] in VOWELS_MAP and _vowel_count(word) == 1 and word.lower() not in ACCENTED_MONOSYLLABLES:
+            word = word[:-1] + VOWELS_MAP[word[-1]]
+        return word
     return " ".join(clean_single_word(w) for w in s.split())
 
 # Auxiliary simple tenses mapping for generating compound tenses
@@ -45,12 +56,21 @@ AUX_TEMPLATES = {
     }
 }
 
+# Clitics a stored participle can end with, longest first.
+PP_CLITIC_SUFFIXES = ("sela", "sele", "selo", "seli", "cela", "cele", "celo", "celi", "sene", "cene",
+                      "si", "ci", "ne", "la", "le", "lo", "li", "vi")
+# Participle ending when a direct-object pronoun precedes the auxiliary, by the verb's clitic suffix.
+OBJECT_AGREEMENT = {"la": "a", "sela": "a", "cela": "a", "lo": "o", "le": "e", "li": "i"}
+COMPOUND_SLOTS = [("tempi composti", "passato prossimo"), ("tempi composti", "trapassato prossimo"),
+                  ("tempi composti", "trapassato remoto"), ("tempi composti", "futuro anteriore"),
+                  ("congiuntivo", "passato"), ("congiuntivo", "trapassato"), ("condizionale", "passato")]
+
 def build_compound_tenses(conjugations: Dict[str, Any], auxiliary: str, pp: str, is_reflexive: bool, verb_type: str) -> None:
     """
     Fills in all Italian compound tenses dynamically using the auxiliary verb's simple tenses
     and past participle agreement.
     """
-    if not pp or pp == "—":
+    if not pp or pp in ("—", "-"):
         return
         
     aux_simple = AUX_TEMPLATES.get(auxiliary, AUX_TEMPLATES["avere"])
@@ -78,44 +98,40 @@ def build_compound_tenses(conjugations: Dict[str, Any], auxiliary: str, pp: str,
             return f"{aux_form} {pp_form}"
         starts_with_vowel = aux_form[0].lower() in ['a', 'e', 'i', 'o', 'u', 'h', 'è', 'é', 'ò']
         if starts_with_vowel:
-            if clitic_str.endswith(" la "):
-                clitic_str = clitic_str[:-4] + " l'"
-            elif clitic_str.endswith(" lo "):
-                clitic_str = clitic_str[:-4] + " l'"
+            # la/lo elide before the auxiliary: l'ho fatta, ce l'ho fatta
+            clitic_str = re.sub(r"\bl[ao] $", "l'", clitic_str)
         return f"{clitic_str}{aux_form} {pp_form}".strip()
         
+    # The participle as stored can carry the verb's clitics (messoci, fattola, andatosene): strip them.
+    clean_pp = pp
+    for clitic_suffix in PP_CLITIC_SUFFIXES:
+        if clean_pp.endswith(clitic_suffix) and clean_pp[:-len(clitic_suffix)].endswith(("o", "a")):
+            clean_pp = clean_pp[:-len(clitic_suffix)]
+            break
+            
     for person in persons:
         # Extract clitic dynamically from present simple
         clitic = ""
         pres_simple = conjugations.get("indicativo", {}).get("presente", {}).get(person, "")
+        if verb_type and pres_simple.strip() in ("", "-", "—"):
+            # A clitic verb missing this person (volerci: only "ci vuole") has no compound form for it either
+            for mood, tense in COMPOUND_SLOTS:
+                conjugations[mood][tense][person] = "-"
+            continue
         parts = pres_simple.split()
         if len(parts) > 1:
             clitic = " ".join(parts[:-1]) + " "
             
         # Participle agreement
-        pp_agree = pp
-        clean_pp = pp
-        if clean_pp.endswith("sela"):
-            clean_pp = clean_pp[:-4]
-        elif clean_pp.endswith("cela"):
-            clean_pp = clean_pp[:-4]
-        elif clean_pp.endswith("sene"):
-            clean_pp = clean_pp[:-4]
-        elif clean_pp.endswith("cene"):
-            clean_pp = clean_pp[:-4]
-        elif clean_pp.endswith("si"):
-            clean_pp = clean_pp[:-2]
-            
+        pp_agree = clean_pp
         if clean_pp.endswith("o") or clean_pp.endswith("a"):
             is_plural = person in ["noi", "voi", "loro, Loro, essi"]
-            if verb_type in ["sela", "cela"]:
-                # Feminine agreement due to preceding 'la' direct object
-                pp_agree = clean_pp[:-1] + ("e" if is_plural else "a")
+            if verb_type in OBJECT_AGREEMENT:
+                # A preceding direct-object pronoun sets the agreement: ce l'abbiamo fatta, se le sono prese
+                pp_agree = clean_pp[:-1] + OBJECT_AGREEMENT[verb_type]
             elif auxiliary == "essere":
                 # Standard subject agreement for essere (o/i)
                 pp_agree = clean_pp[:-1] + ("i" if is_plural else "o")
-            else:
-                pp_agree = clean_pp
                 
         conjugations["tempi composti"]["passato prossimo"][person] = assemble_compound_form(clitic, aux_simple["presente"][person], pp_agree)
         conjugations["tempi composti"]["trapassato prossimo"][person] = assemble_compound_form(clitic, aux_simple["imperfetto"][person], pp_agree)
@@ -367,7 +383,9 @@ def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
                 
     # 2. Reverse lookup: if not found directly, check the forms index
     if not has_direct_match:
-        cursor.execute("SELECT DISTINCT infinitive FROM forms WHERE form = ? ORDER BY length(infinitive) ASC", (cleaned_query,))
+        # Standard forms of current verbs first (vado -> andare, not the archaic gire), then the shortest.
+        cursor.execute("SELECT infinitive FROM forms WHERE form = ? GROUP BY infinitive "
+                       "ORDER BY MIN(priority), length(infinitive) ASC", (cleaned_query,))
         rows = cursor.fetchall()
         for r in rows:
             cand = r[0]
@@ -414,7 +432,7 @@ def get_conjugations(verb_query: str) -> Optional[Dict[str, Any]]:
             is_reflexive = resolved_infinitive.endswith(("si", "sela", "cela", "sene", "cene"))
             
             verb_type = ""
-            for suffix in ["sela", "sene", "cela", "cene", "si", "ci", "ne"]:
+            for suffix in ["sela", "sene", "cela", "cene", "si", "ci", "ne", "la", "lo", "le", "li"]:
                 if resolved_infinitive.endswith(suffix):
                     verb_type = suffix
                     break
