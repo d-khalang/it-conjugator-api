@@ -62,10 +62,11 @@ def test_infinitives_words(client, word, expected):
 
 
 def test_suggest_shape_and_order(client):
-    items = client.get("/v2/suggest", params={"q": "and"}, headers=KEY).json()["items"]
-    # the fixture's three verbs, base before its pronominal forms; andarne is a real verb with a table
-    assert items == ["andare", "andarne", "andarsene", "andicappare"]
-    assert set(fixture("suggest-and.json")["items"]) <= set(items)
+    body = client.get("/v2/suggest", params={"q": "and"}, headers=KEY).json()
+    # the fixture shows the shape, not the exact list (contract §3)
+    assert body.keys() == fixture("suggest-and.json").keys()
+    # pronominal verbs right after their base
+    assert body["items"] == ["andare", "andarne", "andarsene", "andicappare"]
 
 
 @pytest.mark.parametrize("q", ["a", "", " "])

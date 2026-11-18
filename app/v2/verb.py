@@ -114,20 +114,30 @@ class _Builder:
     def _simple(self, tense_id: str, index: int, person: str, v1_person: str, text: str,
                 primary: bool, tags: list[str]) -> dict:
         clitic, rest = _split_clitic(text)
+        enclitic = None
         if clitic is None and self.suffix and tense_id == "imperativo-presente" and self.base_table:
-            # Enclitic imperative (svegliati, vattene): split the base form, the ending carries the clitic.
-            base_form = self._v1(tense_id, v1_person, self.base_table)
-            if base_form and " " not in base_form and text != base_form:
-                base_parts = grammar.split(self.par, tense_id, index, base_form)
-                if text.startswith(base_parts["stem"]):
-                    parts = dict(base_parts, ending=text[len(base_parts["stem"]):])
-                    irregular = not self.par.is_regular(tense_id, index, base_form)
-                    self.irregular |= irregular
-                    return self._form(text, primary, tags, irregular, {"kind": "simple", "clitic": None, **parts})
+            # Enclitic imperative (svegliati, vattene): split the base form (sveglia, va); the rest of the
+            # text, doubled consonant included, is the enclitic.
+            base_form = self._enclitic_base(tense_id, index, v1_person, text)
+            if base_form:
+                rest, enclitic = base_form, text[len(base_form):]
         parts = grammar.split(self.par, tense_id, index, rest)
         irregular = not self.par.is_regular(tense_id, index, rest)
         self.irregular |= irregular
-        return self._form(text, primary, tags, irregular, {"kind": "simple", "clitic": clitic, **parts})
+        return self._form(text, primary, tags, irregular, {
+            "kind": "simple", "clitic": clitic, "stem": parts["stem"], "ending": parts["ending"],
+            "enclitic": enclitic, "irregular_stem": parts["irregular_stem"],
+            "irregular_ending": parts["irregular_ending"]})
+
+    def _enclitic_base(self, tense_id: str, index: int, v1_person: str, text: str) -> Optional[str]:
+        """The base verb's form that text starts with: its own form (sveglia) or a short one (va' -> va)."""
+        base_form = self._v1(tense_id, v1_person, self.base_table)
+        if not base_form or " " in base_form:
+            return None
+        person = IMP_PERSONS[index]
+        options = [base_form.rstrip("'")] + [v.rstrip("'") for v, _ in EXTRA_VARIANTS.get((self.base, tense_id, person), [])]
+        fits = [o for o in options if text.startswith(o) and len(text) > len(o)]
+        return max(fits, key=len) if fits else None
 
     @staticmethod
     def _form(text, primary, tags, irregular, parts) -> dict:

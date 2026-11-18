@@ -84,7 +84,7 @@ def test_split_isc():
 def form_text(form):
     p = form["parts"]
     if p["kind"] == "simple":
-        joined = p["stem"] + p["ending"]
+        joined = p["stem"] + p["ending"] + (p["enclitic"] or "")
         if p["clitic"]:
             joined = p["clitic"] + joined if p["clitic"].endswith("'") else f"{p['clitic']} {joined}"
         return joined
@@ -152,17 +152,30 @@ def test_object_clitic_compounds_agree_with_the_object_not_the_subject():
 
 def test_reflexive_clitic_parts():
     form = slot(lexicon.load_verb("svegliarsi"), "indicativo-presente", "1s")[0]
-    assert form["parts"] == {"kind": "simple", "clitic": "mi", "stem": "svegli", "ending": "o",
+    assert form["parts"] == {"kind": "simple", "clitic": "mi", "stem": "svegli", "ending": "o", "enclitic": None,
                              "irregular_stem": False, "irregular_ending": False}
 
 
-def test_enclitic_imperative_keeps_the_clitic_in_the_ending():
-    form = slot(lexicon.load_verb("svegliarsi"), "imperativo-presente", "2s")[0]
-    assert (form["text"], form["parts"]["clitic"], form["parts"]["stem"], form["parts"]["ending"]) == \
-        ("svegliati", None, "svegli", "ati")
-    assert not form["irregular"]
-    vattene = slot(lexicon.load_verb("andarsene"), "imperativo-presente", "2s")[0]
-    assert (vattene["parts"]["stem"], vattene["parts"]["ending"], vattene["irregular"]) == ("va", "ttene", True)
+def enclitic_parts(infinitive, person):
+    form = slot(lexicon.load_verb(infinitive), "imperativo-presente", person)[0]
+    p = form["parts"]
+    return f"{p['stem']}|{p['ending']}|{p['enclitic']}", p["clitic"], form["irregular"]
+
+
+@pytest.mark.parametrize("infinitive, person, expected, irregular", [
+    ("svegliarsi", "2s", "svegli|a|ti", False),
+    ("svegliarsi", "1p", "svegl|iamo|ci", False),
+    ("svegliarsi", "2p", "svegli|ate|vi", False),
+    ("andarsene", "2s", "v|a|ttene", True),  # short base va', doubled consonant in the enclitic
+    ("andarsene", "1p", "and|iamo|cene", False),
+    ("andarsene", "2p", "and|ate|vene", False),
+])
+def test_enclitic_imperatives(infinitive, person, expected, irregular):
+    assert enclitic_parts(infinitive, person) == (expected, None, irregular)
+
+
+def test_proclitic_imperative_has_no_enclitic():
+    assert enclitic_parts("svegliarsi", "3s") == ("svegl|i|None", "si", False)
 
 
 def test_defective_slots_are_empty_and_empty_tenses_are_omitted():

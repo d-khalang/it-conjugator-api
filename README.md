@@ -68,8 +68,8 @@ v1 `/conjugate` is unchanged.
   -isc-, -rre) with the spelling rules (-care/-gare, -ciare/-giare/-sciare, -iare). The longest fitting candidate ending
   (the slot's regular ending, or a core ending of the tense and person across classes) splits the form; flags compare
   with the regular stem and ending. -ere passato remoto -etti/-ette/-ettero count as regular.
-  Clitics go in `parts.clitic` (`mi`, `me ne`, `ce l'`); enclitic imperatives keep the clitic in the ending
-  (`svegli|ati`, `va|ttene`).
+  Clitics before the verb go in `parts.clitic` (`mi`, `me ne`, `ce l'`); pronouns attached after it go in
+  `parts.enclitic`, split on the base form: `svegli|a|ti`, `v|a|ttene`, `and|iamo|cene`.
 - **Match**: `infinitive` (the query is one), `form` (every slot holding it; works with spaces: `sono andato`,
   `mi alzo`, `me ne vado`, `ce l'ho fatta`), `fuzzy` (closest infinitives by edit distance). Queries: letters,
   spaces and apostrophes, at most 60 chars and 4 words.
@@ -79,7 +79,7 @@ v1 `/conjugate` is unchanged.
   before its pronominal forms (`andare, andarne, andarsene, andicappare`). A real "most common first" needs a
   frequency list of Italian lemmas (e.g. a corpus count) stored as a rank per infinitive.
 - **Variants**: the data has one form per slot; `app/v2/verb.py` adds the standard truncated tu-imperatives
-  (`va'`, `da'`, `fa'`, `sta'`). `DATA_VERSION` there is the build date of `verbs.db`: bump it on every rebuild.
+  (`va'`, `da'`, `fa'`, `sta'`; the data already has `di'`). `DATA_VERSION` there is the build date of `verbs.db`: bump it on every rebuild.
 
 ### Tests
 ```bash
