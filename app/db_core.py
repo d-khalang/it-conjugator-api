@@ -191,7 +191,7 @@ def conjugate_pronominal_dynamically(base_data: Dict[str, Any], verb_query: str,
     gerundio = "—"
     if base_gerund and base_gerund != "—":
         if verb_type == "si": gerundio = base_gerund + "si"
-        elif verb_type == "sela": gerundio = base_gerund[:-1] + "andocela" if base_gerund.endswith("ando") else base_gerund + "sela"
+        elif verb_type == "sela": gerundio = base_gerund + "sela"  # lavando -> lavandosela
         elif verb_type == "ci": gerundio = base_gerund + "ci"
         elif verb_type == "cela": gerundio = base_gerund + "cela"
         else: gerundio = base_gerund + verb_type

@@ -65,10 +65,13 @@ def pronominal_of(infinitive: str) -> Optional[tuple[str, str]]:
 
 
 def is_infinitive(word: str) -> bool:
-    """A single-word verb infinitive: in the table, or a pronominal form of one (lavarsela)."""
-    if not word or " " in word:
-        return False
-    return has_table(word) or pronominal_of(word) is not None
+    """A single-word infinitive with its own conjugation table in verbs.db (svegliarsi, andarsene, porsi).
+
+    Pronominal verbs without a table are not infinitives for v2: v1's dynamic builder
+    (db_core.conjugate_pronominal_dynamically) gets them wrong (Lei/Loro imperatives lose the clitic,
+    -ne verbs get no clitic, unknown suffixes fall back to another verb), so v2 returns null / not found
+    rather than wrong forms. Base resolution for verbs with a table is pronominal_split (verb.py)."""
+    return bool(word) and " " not in word and has_table(word)
 
 
 # -- normalisation ----------------------------------------------------------------------------

@@ -119,3 +119,9 @@ def test_a_clitic_verb_missing_a_person_has_no_compound_for_it():
 ])
 def test_clean_accents(raw, clean):
     assert clean_accents(raw) == clean
+
+
+def test_dynamic_sela_gerund():
+    from app.db_core import conjugate_pronominal_dynamically
+    data = conjugate_pronominal_dynamically(get_conjugations("lavare"), "lavarsela", "sela")
+    assert data["principal_forms"]["gerundio"] == "lavandosela"

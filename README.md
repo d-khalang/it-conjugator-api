@@ -73,8 +73,10 @@ v1 `/conjugate` is unchanged.
 - **Match**: `infinitive` (the query is one), `form` (every slot holding it; works with spaces: `sono andato`,
   `mi alzo`, `me ne vado`, `ce l'ho fatta`), `fuzzy` (closest infinitives by edit distance). Queries: letters,
   spaces and apostrophes, at most 60 chars and 4 words.
-- **Infinitives**: the ~13k entries of `verbs.db` with a conjugation table (loaded once into memory, ~1 s), plus
-  pronominal forms of them (`lavarsela`). The other ~35k rows (`andandoci`, idioms) are not served by v2.
+- **Infinitives**: the ~13k entries of `verbs.db` with a conjugation table (loaded once into memory, ~1 s).
+  A pronominal verb without its own table (`parlarne`, `lavarsela`) is not an infinitive for v2: v1's dynamic
+  builder gets its forms wrong, so v2 answers null / not found. The other ~35k rows (`andandoci`, idioms) are not
+  served by v2.
 - **Suggest order**: `verbs.db` has no word frequencies, so the order is a stand-in: shorter base verb first, the base
   before its pronominal forms (`andare, andarne, andarsene, andicappare`). A real "most common first" needs a
   frequency list of Italian lemmas (e.g. a corpus count) stored as a rank per infinitive.

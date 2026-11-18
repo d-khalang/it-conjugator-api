@@ -94,3 +94,33 @@ def test_v1_is_unchanged(client):
     body = client.get("/conjugate", params={"v": "vado"}, headers=KEY).json()
     assert body["success"] and body["data"]["queried"] == "andare"
     assert body["data"]["conjugations"]["tempi composti"]["passato prossimo"]["io"] == "sono andato"
+
+
+def _sample_infinitives():
+    from app.v2 import lexicon
+    words = lexicon.index().words
+    pronominal = [w for w in words if lexicon.pronominal_of(w)]
+    return words[::400] + pronominal[::80] + ["porsi", "tradursi", "svegliarsi", "andarsene", "farcela"]
+
+
+def test_every_infinitive_is_conjugated_as_that_infinitive(client):
+    sample = _sample_infinitives()
+    body = client.post("/v2/infinitives", json={"words": sample}, headers=KEY).json()["infinitives"]
+    assert body == {w: w for w in sample}
+    for word in sample:
+        r = client.get("/v2/conjugate", params={"q": word}, headers=KEY)
+        assert r.status_code == 200, word
+        assert (r.json()["match"]["kind"], r.json()["verb"]["infinitive"]) == ("infinitive", word)
+
+
+@pytest.mark.parametrize("word", ["pentirsene", "parlarne", "mangiarci", "lavarsela", "dirselo"])
+def test_pronominal_without_a_table_is_not_an_infinitive(client, word):
+    # v1's dynamic builder gets these wrong, so v2 says null instead of serving wrong forms
+    body = client.post("/v2/infinitives", json={"words": [word]}, headers=KEY).json()
+    assert body["infinitives"] == {word: None}
+
+
+def test_base_of_rre_pronominals():
+    from app.v2 import lexicon
+    assert lexicon.pronominal_of("porsi") == ("porre", "si")
+    assert lexicon.pronominal_of("tradursi") == ("tradurre", "si")
