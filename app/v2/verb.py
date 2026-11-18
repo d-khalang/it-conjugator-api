@@ -187,6 +187,8 @@ class _Builder:
                     else:
                         forms = [self._simple(tense_id, index, person, v1_person, text, True, [])]
                         for extra, tags in EXTRA_VARIANTS.get((self.infinitive, tense_id, person), []):
+                            if any(f["text"] == extra for f in forms):
+                                continue  # the data already has it
                             forms.append(self._simple(tense_id, index, person, v1_person, extra, False, tags))
                 any_form |= bool(forms)
                 slots.append({"person": person, "forms": forms})

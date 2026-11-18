@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import secrets
 from fastapi import Header, HTTPException
 from typing import Optional
 from fastapi import FastAPI, Query
@@ -32,7 +33,7 @@ def conjugate(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
 ):
     # ---- API key check (one liner) ----
-    if not API_KEY or x_api_key != API_KEY:
+    if not API_KEY or not secrets.compare_digest(x_api_key or "", API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
     """
@@ -94,7 +95,7 @@ def _error(status: int, code: str, message: str, **extra) -> JSONResponse:
 
 
 def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
-    if not API_KEY or x_api_key != API_KEY:
+    if not API_KEY or not secrets.compare_digest(x_api_key or "", API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 

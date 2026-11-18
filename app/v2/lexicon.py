@@ -12,7 +12,7 @@ from functools import lru_cache
 from typing import Optional
 
 from ..db_core import DB_PATH, clean_accents, get_conjugations, levenshtein_distance
-from .verb import build_verb, nfc, pronominal_split
+from .verb import PRONOMINAL_SUFFIXES, build_verb, nfc, pronominal_split
 
 MAX_QUERY_CHARS = 60
 MAX_QUERY_WORDS = 4
@@ -79,9 +79,12 @@ def normalize(query: str) -> str:
     return " ".join(q.split())
 
 
+# Contract §3: up to 4 words of letters and apostrophes, single spaces (after normalize()).
+VALID_QUERY = re.compile(r"^[a-zàáèéìíòóùú']+( [a-zàáèéìíòóùú']+){0,3}$")
+
+
 def valid_query(q: str) -> bool:
-    return bool(q) and len(q) <= MAX_QUERY_CHARS and len(q.split(" ")) <= MAX_QUERY_WORDS \
-        and re.fullmatch(r"[a-zàáèéìíòóùú' ]+", q) is not None
+    return len(q) <= MAX_QUERY_CHARS and VALID_QUERY.fullmatch(q) is not None
 
 
 # -- verb loading -----------------------------------------------------------------------------
@@ -163,7 +166,7 @@ def _pronominal_derivatives(base: str) -> list[str]:
     """Pronominal infinitives built on base that exist (alzare -> alzarsi; andare -> andarsene, andarne...)."""
     stem = base[:-1] if not base.endswith("rre") else base[:-2]
     out = []
-    for suffix in ("si", "sene", "ne", "ci", "cela", "sela", "cene", "vi"):
+    for suffix in PRONOMINAL_SUFFIXES:
         candidate = stem + suffix
         if has_table(candidate):
             out.append(candidate)

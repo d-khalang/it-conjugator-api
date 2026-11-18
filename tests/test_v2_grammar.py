@@ -224,3 +224,33 @@ def test_match_candidates_leave_out_archaic_readings():
 def test_normalize():
     assert lexicon.normalize("  Me  NE  Vado ") == "me ne vado"
     assert lexicon.normalize("ce l’ho fatta") == "ce l'ho fatta"
+
+
+def test_pronominal_derivatives_use_every_clitic_suffix():
+    assert {"smetterla"} <= set(lexicon._pronominal_derivatives("smettere"))
+    assert {"prenderle", "prendersela"} <= set(lexicon._pronominal_derivatives("prendere"))
+
+
+@pytest.mark.parametrize("query, infinitive", [("la smetto", "smetterla"), ("le prendo", "prenderle")])
+def test_match_object_clitic_verbs(query, infinitive):
+    match, verb = lexicon.match(query)
+    assert (match["kind"], verb["infinitive"]) == ("form", infinitive)
+    assert ("indicativo-presente", "1s") in [(s["tense_id"], s["person"]) for s in match["slots"]]
+
+
+@pytest.mark.parametrize("query, ok", [
+    ("vado", True), ("me ne vado", True), ("ce l'ho fatta", True), ("a b c d", True),
+    (" vado", False), ("vado ", False), ("vado  via", False), ("a b c d e", False), ("", False), ("x" * 61, False),
+])
+def test_valid_query_is_the_contract_rule(query, ok):
+    assert lexicon.valid_query(query) is ok
+
+
+def test_curated_variant_equal_to_the_data_is_not_duplicated(monkeypatch):
+    from app.v2 import verb as verb_module
+    monkeypatch.setitem(verb_module.EXTRA_VARIANTS, ("dire", "imperativo-presente", "2s"), [("di'", [])])
+    lexicon._verb_cached.cache_clear()
+    try:
+        assert [f["text"] for f in slot(lexicon.load_verb("dire"), "imperativo-presente", "2s")] == ["di'"]
+    finally:
+        lexicon._verb_cached.cache_clear()
