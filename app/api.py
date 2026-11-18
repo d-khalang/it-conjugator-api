@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import secrets
 from fastapi import Header, HTTPException
 from typing import Optional
 from fastapi import FastAPI, Query
@@ -32,7 +33,7 @@ def conjugate(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
 ):
     # ---- API key check (one liner) ----
-    if not API_KEY or x_api_key != API_KEY:
+    if not API_KEY or not secrets.compare_digest(x_api_key or "", API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
     """
@@ -76,3 +77,54 @@ def conjugate(
 
     except Exception as e:
         return APIResponse(success=False, error=str(e), requested=req)
+
+
+# ---------------------------------------------------------------------------------------------
+# v2 (contract: docs/verbs/contract.md §2-§3 in the app repo)
+# ---------------------------------------------------------------------------------------------
+from fastapi import Depends
+from pydantic import BaseModel
+
+from .v2 import lexicon
+
+MAX_INFINITIVE_WORDS = 500
+
+
+def _error(status: int, code: str, message: str, **extra) -> JSONResponse:
+    return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}, **extra})
+
+
+def require_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> None:
+    if not API_KEY or not secrets.compare_digest(x_api_key or "", API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
+
+
+@app.get("/v2/conjugate", dependencies=[Depends(require_api_key)])
+def conjugate_v2(q: str = Query(..., description="Infinitive or any form, e.g. vado, sono andato, me ne vado")):
+    query = lexicon.normalize(q)
+    if not lexicon.valid_query(query):
+        return _error(400, "invalid_query",
+                      f"Query must be letters only, at most {lexicon.MAX_QUERY_CHARS} chars and "
+                      f"{lexicon.MAX_QUERY_WORDS} words")
+    found = lexicon.match(query)
+    if not found:
+        return _error(404, "verb_not_found", f"No verb for '{query}'", suggestions=lexicon.suggest(query, 5))
+    match, verb = found
+    return {"match": match, "verb": verb}
+
+
+@app.get("/v2/suggest", dependencies=[Depends(require_api_key)])
+def suggest_v2(q: str = Query(""), limit: int = Query(8, ge=1, le=50)):
+    return {"items": lexicon.suggest(q, limit)}
+
+
+class InfinitivesRequest(BaseModel):
+    words: list[str]
+
+
+@app.post("/v2/infinitives", dependencies=[Depends(require_api_key)])
+def infinitives_v2(body: InfinitivesRequest):
+    if len(body.words) > MAX_INFINITIVE_WORDS:
+        return _error(400, "too_many_words", f"At most {MAX_INFINITIVE_WORDS} words")
+    return {"infinitives": {w: lexicon.infinitive_or_none(w) for w in body.words}}
+

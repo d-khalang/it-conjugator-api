@@ -49,9 +49,43 @@ Once running, query the API using standard HTTP tools (such as curl):
 curl -H "X-API-Key: secret_auth" "http://localhost:8000/conjugate?v=mi+arrabbio"
 ```
 
+### API v2
+
+Service-to-service API for the Kartino Verbs page (same `X-API-Key` header). The shared contract lives in the app
+repo (`docs/verbs/contract.md`); `tests/fixtures/conjugator/` holds its fixtures, which the tests reproduce.
+v1 `/conjugate` is unchanged.
+
+| Route | Answer |
+|-------|--------|
+| `GET /v2/conjugate?q=` | `{"match", "verb"}`; 404 `{"error": {"code": "verb_not_found", ...}, "suggestions"}`; 400 `invalid_query` |
+| `GET /v2/suggest?q=&limit=8` | `{"items": [infinitive]}`, prefix match; `q` shorter than 2 → `[]` |
+| `POST /v2/infinitives` `{"words": [...]}` (≤ 500) | `{"infinitives": {word: infinitive or null}}`: infinitives only |
+
+- **Verb object**: canonical ids (`indicativo-presente`, persons `1s`…`3p`, imperativo `2s`…`3p`), compound indicative
+  tenses under `indicativo` with `compound: true`, every slot a list of forms (one `primary`). Essere compounds add a
+  feminine variant. Defective slots are `[]`; a tense with no forms is left out.
+- **Stem/ending** (`app/v2/grammar.py`, pure): the regular form comes from the verb class (-are, -ere, -ire, -ire with
+  -isc-, -rre) with the spelling rules (-care/-gare, -ciare/-giare/-sciare, -iare). The longest fitting candidate ending
+  (the slot's regular ending, or a core ending of the tense and person across classes) splits the form; flags compare
+  with the regular stem and ending. -ere passato remoto -etti/-ette/-ettero count as regular.
+  Clitics before the verb go in `parts.clitic` (`mi`, `me ne`, `ce l'`); pronouns attached after it go in
+  `parts.enclitic`, split on the base form: `svegli|a|ti`, `v|a|ttene`, `and|iamo|cene`.
+- **Match**: `infinitive` (the query is one), `form` (every slot holding it; works with spaces: `sono andato`,
+  `mi alzo`, `me ne vado`, `ce l'ho fatta`), `fuzzy` (closest infinitives by edit distance). Queries: letters,
+  spaces and apostrophes, at most 60 chars and 4 words.
+- **Infinitives**: the ~13k entries of `verbs.db` with a conjugation table (loaded once into memory, ~1 s).
+  A pronominal verb without its own table (`parlarne`, `lavarsela`) is not an infinitive for v2: v1's dynamic
+  builder gets its forms wrong, so v2 answers null / not found. The other ~35k rows (`andandoci`, idioms) are not
+  served by v2.
+- **Suggest order**: `verbs.db` has no word frequencies, so the order is a stand-in: shorter base verb first, the base
+  before its pronominal forms (`andare, andarne, andarsene, andicappare`). A real "most common first" needs a
+  frequency list of Italian lemmas (e.g. a corpus count) stored as a rank per infinitive.
+- **Variants**: the data has one form per slot; `app/v2/verb.py` adds the standard truncated tu-imperatives
+  (`va'`, `da'`, `fa'`, `sta'`; the data already has `di'`). `DATA_VERSION` there is the build date of `verbs.db`: bump it on every rebuild.
+
 ### Tests
 ```bash
-pip install pytest
+pip install pytest httpx
 pytest
 ```
 
